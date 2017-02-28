@@ -80,19 +80,20 @@
             </div>
         </div>
         <script type="text/javascript" src="vendors/d3/d3.v4.min.js"></script>
-        <script type="text/javascript" src="vendors/topojson.v2.min.js"></script>
         <script>
             function dashboard(id, fData){
                 var barColor = 'steelblue';
-                function segColor(c){ return {occupied:"#807dba", vacant:"#e08214"}[c]; }
+                function segColor(c){ return {occupied:"#84BA24", vacant:"#e08214"}[c]; }
 
-                // compute total for each year.
-                fData.forEach(function(d){ d.total = d.freq.occupied + d.freq.vacant; });
+                var cpy = fData;
+
+                // compute total_housing for each year.
+                fData.forEach(function(d){ d.total_housing = d.freq.occupied + d.freq.vacant; });
 
                 // function to handle histogram.
                 function histoGram(fD) {
                     var hG={},    hGDim = {t: 60, r: 0, b: 30, l: 0};
-                    hGDim.w = 500 - hGDim.l - hGDim.r,
+                    hGDim.w = 300 - hGDim.l - hGDim.r,
                         hGDim.h = 300 - hGDim.t - hGDim.b;
 
                     //create svg for histogram.
@@ -163,18 +164,21 @@
                         y.domain([0, d3.max(nD, function(d) { return d[1]; })]);
 
                         // Attach the new data to the bars.
-                        var bars = hGsvg.selectAll(".bar").data(nD);
+                        var bars = hGsvg.selectAll(".bar")
+                            .data(nD);
 
                         // transition the height and color of rectangles.
-                        bars.select("rect").transition().duration(500)
+                        bars.select("rect")
+                            .transition().duration(500)
                             .attr("y", function(d) {return y(d[1]); })
                             .attr("height", function(d) { return hGDim.h - y(d[1]); })
                             .attr("fill", color);
 
                         // transition the frequency labels location and change value.
-                        bars.select("text").transition().duration(500)
+                        bars.select("text")
+                            .transition().duration(500)
                             .text(function(d){ return d3.format(",")(d[1])})
-                            .attr("y", function(d) {return y(d[1])-5; });
+                            .attr("y", function(d) {return y(d[1]) - 5; });
                     };
 
                     return hG;
@@ -211,14 +215,25 @@
                     // Utility function to be called on mouseover a pie slice.
                     function mouseover(d) {
                         // call the update function of histogram with new data.
+
                         hG.update(fData.map(function(v) {
-                            return [v.year ,v.freq[d.data.type]];}), segColor(d.data.type));
+                            return [v.year ,v.freq[d.data.type]];
+                        }),
+                            segColor(d.data.type));
+
+                        lC.update(fData.map(function(v) {
+                            return [v.year, ((v.freq[d.data.type] / v.pop) * 100)];
+                        }));
                     }
                     //Utility function to be called on mouseout a pie slice.
                     function mouseout(d) {
                         // call the update function of histogram with all data.
                         hG.update(fData.map(function(v) {
-                            return [v.year, v.total];}), barColor);
+                            return [v.year, v.total_housing]; }), barColor);
+
+                        lC.update(fData.map(function(v) {
+                            return [v.year, v.pop];
+                        }));
                     }
                     // Animating the pie-slice requiring a custom function which specifies
                     // how the intermediate paths should be drawn.
@@ -276,63 +291,80 @@
                     return leg;
                 }
 
-                function lineChart(lD) {
-                    var lC = {};
-                    var lCDim = {t:20, r:20, b:30, l:50};
-                    lCDim.w = 960 - lCDim.l - lCDim.r;
-                    lCDim.h = 500 - lCDim.t - lCDim.b;
+                function lineChart(data) {
+                    var myResult = {};
+                    var margin = { top: 20, right: 20, bottom: 30, left: 50 };
+                    var width = 400 - margin.left - margin.right;
+                    var height = 300 - margin.top - margin.bottom;
 
-                    var lCsvg = d3.select(id).append("svg")
-                        .attr("width", lCDim.w + lCDim.l + lCDim.r)
-                        .attr("height", lCDim.h + lCDim.t + lCDim.b)
-                        .append("g")
-                        .attr("transform", "translate(" + lCDim.l + "," + lCDim.t + ")");
+                    var timeParse = d3.timeParse("%Y");
 
-                    var parseTime = d3.timeParse("%Y");
+                    var x = d3.scaleTime().range([0, width]);
+                    var y = d3.scaleLinear().range([height, 0]);
 
-                    var x = d3.scaleTime().range([0, lCDim.w]);
-                    var y = d3.scaleLinear().range([lCDim.h, 0]);
+                    var xAxis = d3.axisBottom(x).ticks(5);
+                    var yAxis = d3.axisLeft(y).ticks(5);
 
                     var line = d3.line()
                         .x(function(d) { return x(d.year); })
-                        .y(function(d) { return y((d.freq.vacant / d.pop) * 100); });
+                        .y(function(d) { return y(d.pop); });
 
-                    lD.forEach(function(d) {
-                        d.year = parseTime(d.year);
+                    var svg = d3.select(id)
+                        .append("svg")
+                        .attr("width", width + margin.left + margin.right)
+                        .attr("height", height + margin.top + margin.bottom)
+                        .append("g")
+                        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+                    data.forEach(function(d) {
+                        d.year = timeParse(d.year);
                         d.pop = +d.pop;
                     });
 
-                    x.domain(d3.extent(lD, function(d) { return d.year; }));
-                    y.domain(d3.extent(lD, function(d) { return (d.freq.vacant / d.pop) * 100; }));
+                    x.domain(d3.extent(data, function(d) { return d.year; }));
+                    y.domain(d3.extent(data, function(d) { return d.pop; }));
 
-                    console.log(lD);
-
-                    lCsvg.append("path")
-                        .data([lD])
+                    svg.append("path")
                         .attr("class", "line")
-                        .attr("d", line);
+                        .attr("d", line(data));
 
-                    lCsvg.append("g")
-                        .attr("transform", "translate(0," + lCDim.h + ")")
-                        .call(d3.axisBottom(x).ticks(5));
+                    svg.append("g")
+                        .attr("class", "x-axis")
+                        .attr("transform", "translate(0," + height + ")")
+                        .call(xAxis);
 
-                    lCsvg.append("g")
-                        .call(d3.axisLeft(y).ticks(5));
+                    svg.append("g")
+                        .attr("class", "y-axis")
+                        .call(yAxis);
 
-                    lC.update = function() {
+                    myResult.update = function(newData) {
+                        console.log(newData);
+                        newData.forEach(function(d) {
+                            d[0] = timeParse(d[0]);
+                            d[1] = +d[1];
+                        });
 
+                        y.domain(d3.extent(newData, function(d) { return d[1]; }));
+
+                        d3.select(".line")
+                            .transition().duration(500)
+                            .attr("d", line(newData));
+
+                        d3.select(".y-axis")
+                            .transition().duration(500)
+                            .call(yAxis);
                     };
 
-                    return lC;
+                    return myResult;
                 }
 
-                // calculate total frequency by segment for all years.
+                // calculate total_housing frequency by segment for all years.
                 var tF = ['occupied', 'vacant'].map(function(d) {
                     return { type:d, freq: d3.sum(fData.map(function(t){ return t.freq[d]; })) };
                 });
 
-                // calculate total frequency by year for all segment.
-                var sF = fData.map(function(d){ return [d.year, d.total]; });
+                // calculate total_housing frequency by year for all segment.
+                var sF = fData.map(function(d){ return [d.year, d.total_housing]; });
 
                 var hG =  histoGram(sF); // create the histogram.
                 var pC =  pieChart(tF); // create the pie-chart.
@@ -342,11 +374,11 @@
         </script>
         <script>
             freqData = [
-                {year:'1970', freq:{occupied:176499, vacant:15800}, pop:507091},
-                {year:'1980', freq:{occupied:175240, vacant:16577}, pop:448128},
-                {year:'1990', freq:{occupied:177602, vacant:24182}, pop:435135},
-                {year:'2000', freq:{occupied:183981, vacant:18353}, pop:441545},
-                {year:'2010', freq:{occupied:192405, vacant:29453}, pop:459787}
+                {year:1970, freq:{occupied:176499, vacant:15800}, pop:507091},
+                {year:1980, freq:{occupied:175240, vacant:16577}, pop:448128},
+                {year:1990, freq:{occupied:177602, vacant:24182}, pop:435135},
+                {year:2000, freq:{occupied:183981, vacant:18353}, pop:441545},
+                {year:2010, freq:{occupied:192405, vacant:29453}, pop:459787}
             ];
 
             dashboard('#dashboard',freqData);

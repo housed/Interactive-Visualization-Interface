@@ -2979,8 +2979,8 @@ var interval$1 = function(callback, delay, time) {
   if (delay == null) return t.restart(callback, delay, time), t;
   delay = +delay, time = time == null ? now() : +time;
   t.restart(function tick(elapsed) {
-    elapsed += total;
-    t.restart(tick, total += delay, time);
+    elapsed += total_housing;
+    t.restart(tick, total_housing += delay, time);
     callback(elapsed);
   }, delay, time);
   return t;
